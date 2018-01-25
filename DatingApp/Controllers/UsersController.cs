@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
@@ -40,58 +41,53 @@ namespace DatingApp.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser([FromRoute] int id)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             var user = await _repository.GetUser(id);
 
-//            if (!ModelState.IsValid)
-//            {
-//                return BadRequest(ModelState);
-//            }
-//
-//            var user = await _context.Users.SingleOrDefaultAsync(m => m.Id == id);
-//
-//            if (user == null)
-//            {
-//                return NotFound();
-//            }
+            if (user == null)
+            {
+                return NotFound();
+            }
 
             var userToReturn = _mapper.Map<UserForDetailedDto>(user);
             return Ok(userToReturn);
         }
 
         // PUT: api/Users/5
-//        [HttpPut("{id}")]
-//        public async Task<IActionResult> PutUser([FromRoute] int id, [FromBody] User user)
-//        {
-//            if (!ModelState.IsValid)
-//            {
-//                return BadRequest(ModelState);
-//            }
-//
-//            if (id != user.Id)
-//            {
-//                return BadRequest();
-//            }
-//
-//            _context.Entry(user).State = EntityState.Modified;
-//
-//            try
-//            {
-//                await _context.SaveChangesAsync();
-//            }
-//            catch (DbUpdateConcurrencyException)
-//            {
-//                if (!UserExists(id))
-//                {
-//                    return NotFound();
-//                }
-//                else
-//                {
-//                    throw;
-//                }
-//            }
-//
-//            return NoContent();
-//        }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutUser([FromRoute] int id, [FromBody] UserForUpdateDto userForUpdateDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            
+            var loggedInUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var userFromRepo = await _repository.GetUser(id);
+
+            if (userFromRepo == null)
+            {
+                return NotFound($"Could not find user with an ID if {id}");
+            }
+
+            if (loggedInUserId != userFromRepo.Id)
+            {
+                return Unauthorized();
+            }
+
+            _mapper.Map(userForUpdateDto, userFromRepo);
+
+            if (await _repository.SaveAll())
+            {
+                return NoContent();
+            }
+
+            throw new Exception($"Updating user {id} failed on save");
+        }
 //
 //        // POST: api/Users
 //        [HttpPost]
